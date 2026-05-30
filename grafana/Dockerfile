@@ -1,32 +1,32 @@
 FROM grafana/grafana:10.1.2
 
-# Passer en root pour les installations
+# 1. Switch to root to install plugins
 USER root
 
-# Installer les plugins Grafana utiles
+# 2. Install useful Grafana plugins
 RUN grafana-cli plugins install grafana-piechart-panel && \
     grafana-cli plugins install grafana-worldmap-panel && \
     grafana-cli plugins install vonage-status-panel
 
-# Variables d'environnement
+# 3. Environment Variables
 ENV GF_SECURITY_ADMIN_USER=admin \
     GF_SECURITY_ADMIN_PASSWORD=fraud2024! \
     GF_USERS_ALLOW_SIGN_UP=false \
     GF_SERVER_DOMAIN=localhost \
     GF_SERVER_HTTP_PORT=3000 \
     GF_ANALYTICS_REPORTING_ENABLED=false \
-    # Provisioning automatique
     GF_PATHS_PROVISIONING=/etc/grafana/provisioning \
     GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/fraud-overview.json
 
-# Copier les configurations de provisioning
-COPY provisioning/ /etc/grafana/provisioning/
-COPY dashboards/ /var/lib/grafana/dashboards/
+# 4. Copy configurations AND set permissions simultaneously
+# Using 472:472 (Grafana's default UID/GID) avoids the "unknown user" build error
+COPY --chown=472:472 provisioning/ /etc/grafana/provisioning/
+COPY --chown=472:472 dashboards/ /var/lib/grafana/dashboards/
 
-# Ajuster les permissions
-RUN chown -R grafana:grafana /etc/grafana/provisioning /var/lib/grafana/dashboards
+# 5. Remove the manual 'RUN chown' line as it is now redundant and causing errors
 
-USER grafana
+# 6. Switch back to the Grafana user (using ID 472 for compatibility)
+USER 472
 
 EXPOSE 3000
 

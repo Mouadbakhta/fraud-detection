@@ -1,0 +1,88 @@
+{
+  "title": "Fraud Detection Pipeline",
+  "uid": "fraud-pipeline-v1",
+  "timezone": "browser",
+  "time": { "from": "now-1h", "to": "now" },
+  "refresh": "10s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Transactions / seconde",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "targets": [{
+        "expr": "rate(transactions_processed_total[1m])",
+        "legendFormat": "tx/s"
+      }],
+      "options": { "colorMode": "background", "graphMode": "area" }
+    },
+    {
+      "id": 2,
+      "title": "Fraudes détectées (1h)",
+      "type": "stat",
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+      "targets": [{
+        "expr": "increase(frauds_detected_total[1h])",
+        "legendFormat": "fraudes"
+      }],
+      "options": {
+        "colorMode": "background",
+        "thresholds": { "steps": [
+          { "value": 0, "color": "green" },
+          { "value": 10, "color": "orange" },
+          { "value": 50, "color": "red" }
+        ]}
+      }
+    },
+    {
+      "id": 3,
+      "title": "Latence P95 (secondes)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "targets": [{
+        "expr": "histogram_quantile(0.95, rate(processing_latency_seconds_bucket[5m]))",
+        "legendFormat": "P95"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": { "steps": [
+            { "value": 0, "color": "green" },
+            { "value": 1, "color": "red" }
+          ]}
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Taux de fraude %",
+      "type": "gauge",
+      "gridPos": { "x": 0, "y": 4, "w": 6, "h": 8 },
+      "targets": [{
+        "expr": "rate(frauds_detected_total[5m]) / rate(transactions_processed_total[5m]) * 100",
+        "legendFormat": "fraude %"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0, "max": 100,
+          "thresholds": { "steps": [
+            { "value": 0, "color": "green" },
+            { "value": 5, "color": "orange" },
+            { "value": 15, "color": "red" }
+          ]}
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Kafka Consumer Lag",
+      "type": "timeseries",
+      "gridPos": { "x": 6, "y": 4, "w": 18, "h": 8 },
+      "targets": [{
+        "expr": "kafka_consumer_lag",
+        "legendFormat": "topic: {{topic}}"
+      }]
+    }
+  ]
+}

@@ -1,0 +1,149 @@
+name: CD — Build, Push & Deploy
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'v*.*.*'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}/fraud-detection
+
+jobs:
+  # ════════════════════════════════════════════════════════════
+  # JOB 1 — Build & push all images to GHCR
+  # ════════════════════════════════════════════════════════════
+  push-images:
+    name: Push Images to GHCR
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        service: [api-rest, bigquery-proxy, kafka, spark, prometheus, grafana]
+    outputs:
+      image_tag: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${{ matrix.service }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=sha-,format=short
+
+      - name: Build and push — ${{ matrix.service }}
+        uses: docker/build-push-action@v5
+        with:
+          context: ./${{ matrix.service }}
+          file:    ./${{ matrix.service }}/Dockerfile
+          push: true
+          tags:   ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to:   type=gha,scope=${{ matrix.service }},mode=max
+
+  # ════════════════════════════════════════════════════════════
+  # JOB 2 — Deploy to AWS EC2
+  # ════════════════════════════════════════════════════════════
+  deploy:
+    name: Deploy to AWS EC2
+    runs-on: ubuntu-latest
+    needs: push-images
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute image tag
+        id: tag
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=main" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy via SSH to EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host:        ${{ secrets.EC2_HOST }}
+          username:    ${{ secrets.EC2_USER }}
+          key:         ${{ secrets.EC2_SSH_KEY }}
+          port:        22
+          script_stop: true
+          script: |
+            set -e
+            cd ~/fraud-detection
+
+            echo "=== Pull latest code ==="
+            git pull origin main
+
+            echo "=== Log in to GHCR ==="
+            echo "${{ secrets.GITHUB_TOKEN }}" | \
+              docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            echo "=== Set image tag ==="
+            export IMAGE_TAG=${{ steps.tag.outputs.tag }}
+
+            echo "=== Pull new images ==="
+            docker compose pull \
+              api-rest bigquery kafka spark-master spark-worker \
+              prometheus grafana
+
+            echo "=== Rolling restart (zero-downtime for stateless services) ==="
+            # Restart stateless services one by one
+            for svc in api-rest spark-worker; do
+              docker compose up -d --no-deps "$svc"
+              sleep 10
+            done
+
+            # Full restart for infra services (brief downtime acceptable)
+            docker compose up -d \
+              zookeeper kafka prometheus grafana bigquery
+
+            echo "=== Verify health ==="
+            sleep 30
+            curl -sf http://localhost:8000/health  && echo "API OK"
+            curl -sf http://localhost:9090/-/healthy && echo "Prometheus OK"
+            curl -sf http://localhost:3000/api/health && echo "Grafana OK"
+
+            echo "=== Cleanup old images ==="
+            docker image prune -f
+
+  # ════════════════════════════════════════════════════════════
+  # JOB 3 — Notify on success/failure
+  # ════════════════════════════════════════════════════════════
+  notify:
+    name: Notify Deployment Status
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: always()
+    steps:
+      - name: Deployment succeeded
+        if: needs.deploy.result == 'success'
+        run: |
+          echo "✅ Deployment to production succeeded!"
+          echo "Tag: ${{ github.sha }}"
+
+      - name: Deployment failed
+        if: needs.deploy.result == 'failure'
+        run: |
+          echo "❌ Deployment FAILED. Check logs above."
+          exit 1

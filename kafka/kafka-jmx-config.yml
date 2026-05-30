@@ -1,0 +1,45 @@
+# JMX Exporter configuration for Kafka
+# Exposes Kafka broker metrics to Prometheus on port 7071
+
+lowercaseOutputName: true
+lowercaseOutputLabelNames: true
+
+rules:
+  # ── Throughput ──────────────────────────────────────────────────────────────
+  - pattern: "kafka.server<type=BrokerTopicMetrics, name=MessagesInPerSec><>OneMinuteRate"
+    name: kafka_messages_in_per_sec
+    help: "Messages ingested per second"
+    type: GAUGE
+
+  - pattern: "kafka.server<type=BrokerTopicMetrics, name=BytesInPerSec><>OneMinuteRate"
+    name: kafka_bytes_in_per_sec
+    type: GAUGE
+
+  - pattern: "kafka.server<type=BrokerTopicMetrics, name=BytesOutPerSec><>OneMinuteRate"
+    name: kafka_bytes_out_per_sec
+    type: GAUGE
+
+  # ── Consumer lag ────────────────────────────────────────────────────────────
+  - pattern: "kafka.server<type=FetcherLagMetrics, name=ConsumerLag, clientId=(.+), topic=(.+), partition=(.+)><>Value"
+    name: kafka_consumer_lag
+    labels:
+      client_id: "$1"
+      topic: "$2"
+      partition: "$3"
+    type: GAUGE
+
+  # ── Health ──────────────────────────────────────────────────────────────────
+  - pattern: "kafka.server<type=ReplicaManager, name=UnderReplicatedPartitions><>Value"
+    name: kafka_under_replicated_partitions
+    type: GAUGE
+
+  - pattern: "kafka.server<type=ReplicaManager, name=PartitionCount><>Value"
+    name: kafka_partition_count
+    type: GAUGE
+
+  # ── Request latency ─────────────────────────────────────────────────────────
+  - pattern: "kafka.network<type=RequestMetrics, name=TotalTimeMs, request=(.+)><>Mean"
+    name: kafka_request_total_time_ms
+    labels:
+      request: "$1"
+    type: GAUGE

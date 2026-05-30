@@ -1,8 +1,7 @@
-fastapi==0.103.1
-uvicorn[standard]==0.23.2
-kafka-python==2.0.2
-google-cloud-bigquery==3.11.4
-prometheus-fastapi-instrumentator==6.1.0
-pydantic==2.3.0
-python-dotenv==1.0.0
-httpx==0.25.0
+fastapi>=0.103.1
+uvicorn[standard]>=0.23.0
+kafka-python>=2.0.2
+pydantic>=2.0.0
+httpx>=0.24.0
+prometheus-client>=0.17.0
+python-multipart>=0.0.6

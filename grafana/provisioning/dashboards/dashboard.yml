@@ -1,0 +1,11 @@
+# provisioning/dashboards/dashboard.yml
+# Dit à Grafana où trouver les fichiers JSON des dashboards
+
+apiVersion: 1
+
+providers:
+  - name: fraud-detection
+    folder: Fraud Detection
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards

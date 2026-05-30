@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.coverage
+coverage.xml
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Data (can be large / sensitive)
+data/*.csv
+data/*.parquet
+data/*.json
+
+# ML models (large binary files — use Git LFS or store in S3)
+spark/models/*.pkl
+spark/models/*.joblib
+
+# Docker
+.dockerignore
+
+# Secrets / env
+.env
+.env.*
+secrets/
+*.pem
+*.key
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Spark checkpoints (runtime artifact)
+spark-checkpoints/
+tmp/

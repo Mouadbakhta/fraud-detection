@@ -46,9 +46,9 @@ services:
       - zookeeper-data:/var/lib/zookeeper/data
       - zookeeper-log:/var/lib/zookeeper/log
     healthcheck:
-      test: ["CMD", "bash", "-c", "echo ruok | nc localhost 2181 | grep imok"]
+      test: ["CMD", "bash", "-c", "cub zk-ready localhost:2181 30"]
       interval: 10s
-      timeout: 5s
+      timeout: 10s
       retries: 5
       start_period: 30s
 
@@ -70,10 +70,9 @@ services:
     ports:
       - "9092:9092"   # Broker
       - "9999:9999"   # JMX
-      - "7071:7071"   # JMX Prometheus Exporter
+      - "7075:7075"   # JMX Prometheus Exporter
     environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:29092
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
@@ -86,8 +85,6 @@ services:
       KAFKA_REPLICA_FETCH_MAX_BYTES: 10485760
       KAFKA_JMX_PORT: 9999
       KAFKA_JMX_HOSTNAME: kafka
-      KAFKA_OPTS: >-
-        -javaagent:/opt/jmx_exporter/jmx_prometheus_javaagent.jar=7071:/opt/jmx_exporter/kafka-config.yml
       KAFKA_HEAP_OPTS: "-Xmx512M -Xms512M"
     volumes:
       - kafka-data:/var/lib/kafka/data
@@ -160,21 +157,15 @@ services:
     container_name: spark-master
     hostname: spark-master
     restart: unless-stopped
-    command: ["/opt/bitnami/spark/bin/spark-class", "org.apache.spark.deploy.master.Master"]
+    command: ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.master.Master"]
     networks:
       - fraud-net
     ports:
-      - "8080:8080"   # Spark Master UI
-      - "7077:7077"   # Spark Master port
+      - "8080:8080"
+      - "7077:7077"
     environment:
-      SPARK_MODE: master
-      SPARK_MASTER_HOST: spark-master
-      SPARK_MASTER_PORT: 7077
-      SPARK_MASTER_WEBUI_PORT: 8080
-      SPARK_RPC_AUTHENTICATION_ENABLED: "no"
-      SPARK_RPC_ENCRYPTION_ENABLED: "no"
-      SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED: "no"
-      SPARK_SSL_ENABLED: "no"
+      SPARK_HOME: /opt/spark
+      PYSPARK_PYTHON: python3
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080"]
       interval: 30s
@@ -182,9 +173,6 @@ services:
       retries: 3
       start_period: 60s
 
-# ──────────────────────────────────────────────────────────────
-# SERVICE : SPARK WORKER
-# ──────────────────────────────────────────────────────────────
   spark-worker:
     build:
       context: ./spark
@@ -192,29 +180,23 @@ services:
     container_name: spark-worker
     hostname: spark-worker
     restart: unless-stopped
-    command: ["/opt/bitnami/spark/bin/spark-class", "org.apache.spark.deploy.worker.Worker", "spark://spark-master:7077"]
+    command: ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.worker.Worker", "spark://spark-master:7077"]
     depends_on:
       spark-master:
         condition: service_healthy
     networks:
       - fraud-net
     ports:
-      - "8081:8081"   # Spark Worker UI
-      - "4040:4040"   # Spark App UI
+      - "8081:8081"
+      - "4040:4040"
     environment:
-      SPARK_MODE: worker
+      SPARK_HOME: /opt/spark
+      PYSPARK_PYTHON: python3
       SPARK_MASTER_URL: spark://spark-master:7077
-      SPARK_WORKER_CORES: 2
-      SPARK_WORKER_MEMORY: 1G
-      SPARK_WORKER_WEBUI_PORT: 8081
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      BIGQUERY_EMULATOR_HOST: bigquery:9050
-      BIGQUERY_PROJECT_ID: fraud-detection-project
     volumes:
       - spark-checkpoints:/tmp/spark-checkpoints
       - ./spark/spark_streaming_app:/app
-      - ./models:/app/models:ro
-
 # ──────────────────────────────────────────────────────────────
 # SERVICE : BIGQUERY EMULATOR  (stockage des transactions)
 # ──────────────────────────────────────────────────────────────
@@ -235,7 +217,7 @@ services:
     volumes:
       - bigquery-data:/data
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:9050/health"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:9050/bigquery/v2/projects/fraud-detection-project/datasets"]
       interval: 15s
       timeout: 5s
       retries: 3
