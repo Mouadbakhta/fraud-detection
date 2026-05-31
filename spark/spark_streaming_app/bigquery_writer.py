@@ -2,19 +2,18 @@
 bigquery_writer.py — BigQuery Sink for Spark Structured Streaming
 Writes fraud-scored transactions to the BigQuery emulator.
 """
-
-import os
-import json
 import logging
+import os
+
 import requests
 from datetime import datetime, timezone
 
 log = logging.getLogger(__name__)
 
-BQ_HOST       = os.getenv("BIGQUERY_EMULATOR_HOST", "bigquery:9050")
-PROJECT_ID    = os.getenv("BIGQUERY_PROJECT_ID",    "fraud-detection-project")
-DATASET_ID    = os.getenv("BIGQUERY_DATASET",       "transactions")
-TABLE_ID      = os.getenv("BIGQUERY_TABLE",         "raw_transactions")
+BQ_HOST = os.getenv("BIGQUERY_EMULATOR_HOST", "bigquery:9050")
+PROJECT_ID = os.getenv("BIGQUERY_PROJECT_ID", "fraud-detection-project")
+DATASET_ID = os.getenv("BIGQUERY_DATASET", "transactions")
+TABLE_ID = os.getenv("BIGQUERY_TABLE", "raw_transactions")
 
 BASE_URL = f"http://{BQ_HOST}/bigquery/v2/projects/{PROJECT_ID}"
 

@@ -2,11 +2,10 @@
 fraud_detector.py — Fraud Detection Logic
 Wraps the ML model (or rule-based fallback) used by the Spark streaming job.
 """
-
-import os
 import logging
+import os
+
 import joblib
-import numpy as np
 
 log = logging.getLogger(__name__)
 
@@ -30,9 +29,13 @@ class FraudDetector:
                 self.model = joblib.load(self.model_path)
                 log.info("Model loaded from %s", self.model_path)
             except Exception as exc:
-                log.warning("Could not load model (%s) — using rule-based fallback", exc)
+                log.warning(
+                    "Could not load model (%s) — using rule-based fallback", exc
+                )
         else:
-            log.warning("Model not found at %s — using rule-based fallback", self.model_path)
+            log.warning(
+                "Model not found at %s — using rule-based fallback", self.model_path
+            )
 
     # ── Public API ────────────────────────────────────────────────────────────
 
@@ -43,7 +46,9 @@ class FraudDetector:
             return bool(self.model.predict([features])[0])
         return self._rule_based(amount)
 
-    def predict_proba(self, amount: float, user_id: str = "", merchant: str = "") -> float:
+    def predict_proba(
+        self, amount: float, user_id: str = "", merchant: str = ""
+    ) -> float:
         """Return fraud probability [0, 1]."""
         if self.model is not None:
             features = self._build_features(amount, user_id, merchant)
